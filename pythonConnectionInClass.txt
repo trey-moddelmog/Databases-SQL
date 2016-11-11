@@ -1,0 +1,60 @@
+import pyodbc
+connection = pyodbc.connect('DRIVER={SQL Server}; SERVER=localhost; DATABASE=TSQL2012')
+
+cursor = connection.cursor()
+
+## SELECT query - returns multiple rows
+custQuery = "SELECT custid, companyname FROM Sales.Customers WHERE custid > 50;"
+cursor.execute(custQuery)
+
+for row in cursor:
+    print(row.custid, "   ", row.companyname)
+
+## Simple INSERTs. Note that these queries cannot be executed more than once,
+## because there is a unique constraint on the team name.
+    
+insertQuery = "INSERT INTO SchoolTeams.Admin.Team(Team_Name) VALUES('Cubs');"
+cursor.execute(insertQuery)
+connection.commit() # Don't forget this! Otherwise changes do not take affect.
+
+insertQuery = "INSERT INTO SchoolTeams.Admin.Team(Team_Name) VALUES('Cardinals');"
+cursor.execute(insertQuery)
+connection.commit()
+
+## A loop to allow multiple inserts of new-players and their teams.
+## Use a query to get the Team_ID, which must be inserted into the Player table as an FK.
+
+done = False
+while not done:
+    
+    getMaxPlayerID_Query = "SELECT MAX(Player_ID) FROM SchoolTeams.Admin.Player"
+    cursor.execute(getMaxPlayerID_Query)
+    maxPlayerID = cursor.fetchone()[0] ## Query returns one value only
+    newPlayerID = maxPlayerID + 1
+
+    try: ## Errors may occur if the user enters an invalid name or team.
+        newPlayer = input("Enter the new player's name (Press Enter when done): ")
+        if newPlayer == "": done = True
+        else:
+            names = newPlayer.split()
+            firstName = names[0]
+            lastName = names[1]
+            newTeam = input("Enter the new player's team: ")
+
+            findTeamIDQuery = "SELECT Team_ID FROM SchoolTeams.Admin.Team WHERE Team_Name = ?;"
+            ## The ? denotes a bind variable. The value for the variable is provided in the list
+            ## in the next line. This avoids SQL injection attacks.
+            cursor.execute(findTeamIDQuery, [newTeam])
+            teamID = cursor.fetchone()[0]
+            
+            insertQuery = "INSERT INTO SchoolTeams.Admin.Player(Player_ID, Player_First_Name, Player_Last_Name, Team_ID) VALUES(" + str(newPlayerID) + ", ?, ?, " + str(teamID) + ");"
+            ## The 2 question marks are bind variables. Their values are provided, IN ORDER, in the list in the line below.
+            cursor.execute(insertQuery, [firstName, lastName])
+            connection.commit()
+
+    except IndexError:
+        print("Mistake in player name - please repeat input.")
+    except TypeError:
+        print("Invalid team name - please repeat input.")
+
+
